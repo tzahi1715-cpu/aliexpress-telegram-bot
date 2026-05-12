@@ -1,99 +1,89 @@
 import requests
 import time
+import hmac
+import hashlib
 
 TELEGRAM_TOKEN = "7419793459:AAGhSAzyDmg-7GFJrww0UXwYy2ia7N9m2jI"
 CHAT_ID = "-5136013039"
+APP_KEY = "534108"
+APP_SECRET = "ilaCwDuzjSfpMqWjnh0UUSd4QfiHPchT"
 
-PRODUCTS = [
-    {
-        "name": "אוזניות Bluetooth אלחוטיות TWS",
-        "price": "$8.99",
-        "discount": "55%",
-        "img": "https://ae01.alicdn.com/kf/S8c2cd3e5c7964d0a94f0d55d2f59e8b8r.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DdKL9lz"
-    },
-    {
-        "name": "שעון חכם Smart Watch Sport",
-        "price": "$15.99",
-        "discount": "40%",
-        "img": "https://ae01.alicdn.com/kf/HTB1YNybXlCw3KVjSZFlq6AJkFXal.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DlbXvlz"
-    },
-    {
-        "name": "מטען נייד 20000mAh מהיר",
-        "price": "$12.99",
-        "discount": "35%",
-        "img": "https://ae01.alicdn.com/kf/HTB1f7Y9XoD1gK0jSZFsq6zldVXah.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DCmBvlz"
-    },
-    {
-        "name": "רצועת LED RGB חכמה 5M",
-        "price": "$6.99",
-        "discount": "60%",
-        "img": "https://ae01.alicdn.com/kf/HTB1Z8nGaRv0gK0jSZKbq6zK2FXaJ.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DeBBvlz"
-    },
-    {
-        "name": "מצלמת אבטחה WiFi 1080P",
-        "price": "$18.99",
-        "discount": "45%",
-        "img": "https://ae01.alicdn.com/kf/HTB1X8Y6XoD1gK0jSZFsq6zldVXan.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DFcBvlz"
-    },
-    {
-        "name": "כבל USB-C מהיר 100W",
-        "price": "$3.99",
-        "discount": "50%",
-        "img": "https://ae01.alicdn.com/kf/HTB1nK8LaIfrK1RjSspbq6A6JFXaY.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DGhBvlz"
-    },
-    {
-        "name": "מעמד טלפון לרכב מגנטי",
-        "price": "$4.99",
-        "discount": "65%",
-        "img": "https://ae01.alicdn.com/kf/HTB1Y8nGaIfrK1RjSspbq6A6JFXaP.jpg",
-        "link": "https://s.click.aliexpress.com/e/_DHiBvlz"
-    },
-]
+def sign(params):
+    keys = sorted(params.keys())
+    s = APP_SECRET
+    for k in keys:
+        s += k + str(params[k])
+    s += APP_SECRET
+    return hashlib.md5(s.encode()).hexdigest().upper()
+
+def get_products(keyword="phone", page_size=5):
+    ts = str(int(time.time() * 1000))
+    params = {
+        "app_key": APP_KEY,
+        "timestamp": ts,
+        "sign_method": "md5",
+        "method": "aliexpress.affiliate.product.query",
+        "keywords": keyword,
+        "page_size": page_size,
+        "target_currency": "USD",
+        "target_language": "EN",
+        "tracking_id": "default",
+    }
+    params["sign"] = sign(params)
+    url = "https://api-sg.aliexpress.com/sync"
+    r = requests.post(url, data=params)
+    data = r.json()
+    print("API response:", data)
+    products = []
+    try:
+        items = data["aliexpress_affiliate_product_query_response"]["resp_result"]["result"]["products"]["product"]
+        for item in items:
+            products.append({
+                "name": item["product_title"],
+                "price": "$" + item["target_sale_price"],
+                "img": item["product_main_image_url"],
+                "link": item["promotion_link"],
+                "discount": item.get("discount", ""),
+            })
+    except Exception as e:
+        print(f"Parse error: {e}")
+    return products
 
 def send_telegram(text, image_url=None):
     try:
         if image_url:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-            data = {
-                "chat_id": CHAT_ID,
-                "photo": image_url,
-                "caption": text,
-                "parse_mode": "HTML"
-            }
+            data = {"chat_id": CHAT_ID, "photo": image_url, "caption": text, "parse_mode": "HTML"}
         else:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-            data = {
-                "chat_id": CHAT_ID,
-                "text": text,
-                "parse_mode": "HTML"
-            }
+            data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
         r = requests.post(url, data=data)
         print("Sent:", r.status_code)
     except Exception as e:
         print(f"Error: {e}")
 
-send_telegram("🤖 הבוט התחיל לעבוד! מפרסם דילים מאלי אקספרס 🛍")
+send_telegram("🤖 הבוט התחיל! מחפש דילים אמיתיים מאלי אקספרס 🛍")
 time.sleep(2)
 
-i = 0
+keywords = ["earbuds", "smart watch", "power bank", "led strip", "phone case"]
+ki = 0
+sent = set()
+
 while True:
     try:
-        p = PRODUCTS[i % len(PRODUCTS)]
-        msg = (
-            f"🛍 <b>{p['name']}</b>\n"
-            f"💰 מחיר: <b>{p['price']}</b>\n"
-            f"🔥 הנחה: <b>{p['discount']}</b>\n"
-            f"🔗 <a href='{p['link']}'>לקנייה באלי אקספרס</a>"
-        )
-        send_telegram(msg, p['img'])
-        i += 1
-        time.sleep(3600)
+        kw = keywords[ki % len(keywords)]
+        products = get_products(kw)
+        for p in products:
+            if p["link"] not in sent:
+                msg = (
+                    f"🛍 <b>{p['name'][:100]}</b>\n"
+                    f"💰 מחיר: <b>{p['price']}</b>\n"
+                    f"🔗 <a href='{p['link']}'>לקנייה באלי אקספרס</a>"
+                )
+                send_telegram(msg, p["img"])
+                sent.add(p["link"])
+                time.sleep(5)
+        ki += 1
     except Exception as e:
         print(f"Error: {e}")
-        time.sleep(60)
+    time.sleep(3600)
