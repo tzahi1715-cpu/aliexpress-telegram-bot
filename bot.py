@@ -11,11 +11,11 @@ def sign(params):
     keys = sorted(params.keys())
     s = APP_SECRET
     for k in keys:
-        s += k + str(params[k])
+        s += str(k) + str(params[k])
     s += APP_SECRET
-    return hashlib.md5(s.encode()).hexdigest().upper()
+    return hashlib.md5(s.encode("utf-8")).hexdigest().upper()
 
-def get_products(keyword="phone"):
+def get_products(keyword="earbuds"):
     ts = str(int(time.time() * 1000))
     params = {
         "app_key": APP_KEY,
@@ -27,21 +27,24 @@ def get_products(keyword="phone"):
         "target_currency": "USD",
         "target_language": "EN",
         "tracking_id": "default",
+        "fields": "product_title,target_sale_price,product_main_image_url,promotion_link",
     }
     params["sign"] = sign(params)
-    r = requests.post("https://api-sg.aliexpress.com/sync", data=params)
+    r = requests.post("https://api-sg.aliexpress.com/sync", data=params, timeout=15)
     data = r.json()
-    print("API response:", str(data)[:200])
+    print("API:", str(data)[:300])
     products = []
     try:
-        items = data["aliexpress_affiliate_product_query_response"]["resp_result"]["result"]["products"]["product"]
-        for item in items:
-            products.append({
-                "name": item["product_title"],
-                "price": "$" + str(item["target_sale_price"]),
-                "img": item["product_main_image_url"],
-                "link": item["promotion_link"],
-            })
+        resp = data["aliexpress_affiliate_product_query_response"]["resp_result"]
+        if resp["resp_code"] == 200:
+            items = resp["result"]["products"]["product"]
+            for item in items:
+                products.append({
+                    "name": item["product_title"],
+                    "price": "$" + str(item["target_sale_price"]),
+                    "img": item["product_main_image_url"],
+                    "link": item["promotion_link"],
+                })
     except Exception as e:
         print(f"Parse error: {e}")
     return products
@@ -55,9 +58,9 @@ def send_telegram(text, image_url=None):
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
         r = requests.post(url, data=data)
-        print("Telegram sent:", r.status_code)
+        print("Sent:", r.status_code)
     except Exception as e:
-        print(f"Telegram error: {e}")
+        print(f"Error: {e}")
 
 print("Bot starting...")
 send_telegram("🤖 הבוט התחיל! מחפש דילים מאלי אקספרס 🛍")
@@ -72,7 +75,7 @@ while True:
         kw = keywords[ki % len(keywords)]
         print(f"Searching: {kw}")
         products = get_products(kw)
-        print(f"Found {len(products)} products")
+        print(f"Found: {len(products)}")
         for p in products:
             if p["link"] not in sent:
                 msg = (
