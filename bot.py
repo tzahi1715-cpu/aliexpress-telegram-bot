@@ -31,7 +31,7 @@ def get_products(keyword="phone"):
     params["sign"] = sign(params)
     r = requests.post("https://api-sg.aliexpress.com/sync", data=params)
     data = r.json()
-    print("API:", data)
+    print("API response:", str(data)[:200])
     products = []
     try:
         items = data["aliexpress_affiliate_product_query_response"]["resp_result"]["result"]["products"]["product"]
@@ -55,10 +55,11 @@ def send_telegram(text, image_url=None):
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
         r = requests.post(url, data=data)
-        print("Sent:", r.status_code)
+        print("Telegram sent:", r.status_code)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Telegram error: {e}")
 
+print("Bot starting...")
 send_telegram("🤖 הבוט התחיל! מחפש דילים מאלי אקספרס 🛍")
 time.sleep(2)
 
@@ -69,10 +70,16 @@ sent = set()
 while True:
     try:
         kw = keywords[ki % len(keywords)]
+        print(f"Searching: {kw}")
         products = get_products(kw)
+        print(f"Found {len(products)} products")
         for p in products:
             if p["link"] not in sent:
-                msg = f"🛍 <b>{p['name'][:100]}</b>\n💰 מחיר: <b>{p['price']}</b>\n🔗 <a href='{p['link']}'>לקנייה באלי אקספרס</a>"
+                msg = (
+                    f"🛍 <b>{p['name'][:100]}</b>\n"
+                    f"💰 מחיר: <b>{p['price']}</b>\n"
+                    f"🔗 <a href='{p['link']}'>לקנייה באלי אקספרס</a>"
+                )
                 send_telegram(msg, p["img"])
                 sent.add(p["link"])
                 time.sleep(5)
