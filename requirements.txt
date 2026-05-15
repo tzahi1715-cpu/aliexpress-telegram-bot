@@ -1,2 +1,2 @@
 requests
-iop-sdk-python
+iop
