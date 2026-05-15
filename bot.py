@@ -1,159 +1,74 @@
 import requests
 import time
+import iop
 import json
-from iop import IopClient, IopRequest
 
-# =========================
-# CONFIG
-# =========================
-
-TELEGRAM_TOKEN = "7419793459:AAHqTSUlW_eg55ugxfe5-l_FYRcqSh-2nIw"
-CHANNEL_USERNAME = "@AliDealsIsrael"
-
+TELEGRAM_TOKEN = "7419793459:AAGhSAzyDmg-7GFJrww0UXwYy2ia7N9m2jI"
+CHAT_ID = "-5136013039"
 APP_KEY = "534108"
-APP_SECRET = "ilaCwDuzjSfpMqWjnh0UUSd4QfiHPchT"
-
-TRACKING_ID = "default"
-
-# =========================
-# TELEGRAM SEND FUNCTION
-# =========================
-
-def send_telegram(text, image_url=None):
-
-    try:
-
-        if image_url:
-
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-
-            data = {
-                "chat_id": CHANNEL_USERNAME,
-                "photo": image_url,
-                "caption": text,
-                "parse_mode": "HTML"
-            }
-
-        else:
-
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-
-            data = {
-                "chat_id": CHANNEL_USERNAME,
-                "text": text,
-                "parse_mode": "HTML"
-            }
-
-        r = requests.post(url, data=data)
-
-        print("Telegram Status:", r.status_code)
-        print(r.text)
-
-    except Exception as e:
-        print("Telegram Error:", e)
-
-# =========================
-# GET PRODUCTS
-# =========================
+APP_SECRET = "2nSUuI2T0IfFwvNb1TpAmpeILtsjCszH"
 
 def get_products():
-
+    client = iop.IopClient("https://api-sg.aliexpress.com/sync", APP_KEY, APP_SECRET)
+    request = iop.IopRequest("aliexpress.affiliate.hotproduct.query")
+    request.add_api_param("page_size", "5")
+    request.add_api_param("page_no", "1")
+    request.add_api_param("target_currency", "USD")
+    request.add_api_param("target_language", "EN")
+    request.add_api_param("tracking_id", "default")
+    response = client.execute(request)
+    print("Code:", response.code)
+    print("Body:", str(response.body)[:300])
     products = []
-
     try:
-
-        client = IopClient(
-            "https://api-sg.aliexpress.com/sync",
-            APP_KEY,
-            APP_SECRET
-        )
-
-        request = IopRequest(
-            "aliexpress.affiliate.hotproduct.query"
-        )
-
-        request.add_api_param("page_size", "10")
-        request.add_api_param("target_currency", "USD")
-        request.add_api_param("target_language", "EN")
-        request.add_api_param("tracking_id", TRACKING_ID)
-
-        response = client.execute(request)
-
         data = json.loads(response.body)
-
-        result = data.get(
-            "aliexpress_affiliate_hotproduct_query_response",
-            {}
-        )
-
-        resp_result = result.get("resp_result", {})
-        result_data = resp_result.get("result", {})
-        products_data = result_data.get("products", {})
-        items = products_data.get("product", [])
-
+        items = data["aliexpress_affiliate_hotproduct_query_response"]["resp_result"]["result"]["products"]["product"]
         for item in items:
-
-            title = item.get("product_title", "AliExpress Product")
-            price = item.get("target_sale_price", "0")
-            image = item.get("product_main_image_url", "")
-            link = item.get("promotion_link", "")
-
             products.append({
-                "title": title,
-                "price": price,
-                "image": image,
-                "link": link
+                "name": item["product_title"],
+                "price": "$" + str(item["target_sale_price"]),
+                "img": item["product_main_image_url"],
+                "link": item["promotion_link"],
+                "discount": str(item.get("discount", "")) + "%",
             })
-
     except Exception as e:
-        print("AliExpress Error:", e)
-
+        print(f"Parse error: {e}")
     return products
 
-# =========================
-# MAIN LOOP
-# =========================
-
-print("BOT STARTED")
-
-send_telegram("🤖 Bot Started Successfully")
-
-sent_links = set()
-
-while True:
-
+def send_telegram(text, image_url=None):
     try:
-
-        products = get_products()
-
-        print(f"Found {len(products)} products")
-
-        for product in products:
-
-            if product["link"] not in sent_links:
-
-                message = f"""
-🔥 <b>{product['title'][:100]}</b>
-
-💰 Price: <b>${product['price']}</b>
-
-🛒 <a href="{product['link']}">Buy Now</a>
-"""
-
-                send_telegram(
-                    message,
-                    product["image"]
-                )
-
-                sent_links.add(product["link"])
-
-                print("Product Sent")
-
-                time.sleep(10)
-
+        if image_url:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+            data = {"chat_id": CHAT_ID, "photo": image_url, "caption": text, "parse_mode": "HTML"}
+        else:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
+        r = requests.post(url, data=data)
+        print("Telegram:", r.status_code)
     except Exception as e:
-        print("MAIN LOOP ERROR:", e)
+        print(f"Error: {e}")
 
-    print("Waiting 1 hour...")
+print("Starting...")
+send_telegram("🤖 הבוט התחיל! מחפש דילים 🛍")
+time.sleep(2)
 
+sent = set()
+while True:
+    try:
+        print("Fetching...")
+        products = get_products()
+        print(f"Found: {len(products)}")
+        for p in products:
+            if p["link"] not in sent:
+                msg = (
+                    f"🔥 <b>{p['name'][:100]}</b>\n"
+                    f"💰 מחיר: <b>{p['price']}</b>\n"
+                    f"🎁 הנחה: <b>{p['discount']}</b>\n"
+                    f"🔗 <a href='{p['link']}'>לקנייה באלי אקספרס</a>"
+                )
+                send_telegram(msg, p["img"])
+                sent.add(p["link"])
+                time.sleep(5)
+    except Exception as e:
+        print(f"Error: {e}")
     time.sleep(3600)
