@@ -9,7 +9,6 @@ CHAT_ID = "-5136013039"
 APP_KEY = "534108"
 APP_SECRET = "2nSUuI2T0IfFwvNb1TpAmpeILtsjCszH"
 USD_TO_ILS = 3.7
-MIN_PRICE_ILS = 0
 
 DICTIONARY = {
     "כובע": "hat", "כובע צמר": "wool hat beanie", "כובע קש": "straw hat",
@@ -103,6 +102,12 @@ def sign(params):
     s += APP_SECRET
     return hashlib.md5(s.encode("utf-8")).hexdigest().upper()
 
+def safe_int(val):
+    try:
+        return int(float(str(val).strip() or 0))
+    except:
+        return 0
+
 def get_products(keyword, min_price=None, max_price=None):
     ts = str(int(time.time() * 1000))
     params = {
@@ -125,21 +130,25 @@ def get_products(keyword, min_price=None, max_price=None):
         data = r.json()
         items = data["aliexpress_affiliate_product_query_response"]["resp_result"]["result"]["products"]["product"]
         for item in items:
-            price_usd = float(item["target_sale_price"])
-            price_ils = round(price_usd * USD_TO_ILS, 2)
-            if min_price and price_ils < min_price:
+            try:
+                price_usd = float(item["target_sale_price"])
+                price_ils = round(price_usd * USD_TO_ILS, 2)
+                if min_price and price_ils < min_price:
+                    continue
+                if max_price and price_ils > max_price:
+                    continue
+                name_he = translate_to_hebrew(item["product_title"])
+                discount = safe_int(item.get("discount", 0))
+                products.append({
+                    "name": name_he,
+                    "price": f"₪{price_ils}",
+                    "img": item["product_main_image_url"],
+                    "link": item["promotion_link"],
+                    "discount": discount,
+                })
+            except Exception as e:
+                print(f"Item error: {e}")
                 continue
-            if max_price and price_ils > max_price:
-                continue
-            name_he = translate_to_hebrew(item["product_title"])
-            discount = int(item.get("discount", "0") or 0)
-            products.append({
-                "name": name_he,
-                "price": f"₪{price_ils}",
-                "img": item["product_main_image_url"],
-                "link": item["promotion_link"],
-                "discount": discount,
-            })
     except Exception as e:
         print(f"Parse error: {e}")
     return products
