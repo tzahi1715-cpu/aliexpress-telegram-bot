@@ -10,41 +10,6 @@ APP_KEY = "534108"
 APP_SECRET = "2nSUuI2T0IfFwvNb1TpAmpeILtsjCszH"
 USD_TO_ILS = 3.7
 
-DICTIONARY = {
-    "כובע": "hat", "כובע צמר": "wool hat beanie", "כובע קש": "straw hat",
-    "שרשרת": "necklace", "שרשרת זהב": "gold necklace",
-    "שרשרת פנינים": "pearl necklace", "שרשרת כסף": "silver necklace",
-    "טבעת": "ring", "טבעת זהב": "gold ring", "טבעת כסף": "silver ring",
-    "עגיל": "earring", "עגילים": "earrings", "עגילי פנינים": "pearl earrings",
-    "צמיד": "bracelet", "צמיד זהב": "gold bracelet", "צמיד כסף": "silver bracelet",
-    "תיק": "handbag", "תיק עור": "leather handbag", "תיק יד": "handbag",
-    "תיק גב": "backpack", "תיק צד": "crossbody bag",
-    "ארנק": "wallet", "נעליים": "shoes", "נעלי עקב": "high heels",
-    "כפכפים": "sandals", "נעלי ספורט": "sneakers",
-    "נעלי בית": "slippers", "נעלי בית לגבר": "men slippers",
-    "נעלי בית לאישה": "women slippers", "נעליים לגבר": "men shoes",
-    "נעלי ספורט לגבר": "men sneakers", "שמלה": "dress",
-    "חולצה": "shirt", "מעיל": "coat", "צעיף": "scarf",
-    "כפפות": "gloves", "משקפי שמש": "sunglasses",
-    "שעון": "watch", "שעון חכם": "smart watch",
-    "שעון לגבר": "men watch", "שעון לאישה": "women watch",
-    "אוזניות": "earbuds wireless", "טלפון": "phone case",
-    "מטען": "power bank", "תכשיטים": "jewelry",
-    "אביזרים": "accessories", "סיכה": "brooch",
-    "קליפס": "hair clips", "גומי שיער": "hair ties",
-    "חולצה לגבר": "men shirt", "מכנסיים לגבר": "men pants",
-    "גרביים לגבר": "men socks", "חגורה לגבר": "men belt",
-    "ארנק לגבר": "men wallet", "כובע לגבר": "men hat",
-    "מעיל לגבר": "men jacket", "כובע לאישה": "women hat",
-    "ארנק לאישה": "women wallet",
-}
-
-COLORS = {
-    "זהב": "gold", "כסף": "silver", "שחור": "black", "לבן": "white",
-    "אדום": "red", "כחול": "blue", "ירוק": "green", "ורוד": "pink",
-    "סגול": "purple", "חום": "brown", "אפור": "gray", "צהוב": "yellow",
-}
-
 URGENCY_PHRASES = [
     "⏰ מלאי מוגבל - הזדרז!",
     "🔥 נמכר בקצב מטורף!",
@@ -52,6 +17,57 @@ URGENCY_PHRASES = [
     "🏃 אל תפספס את המחיר הזה!",
     "💎 עסקה שאי אפשר לסרב לה!",
 ]
+
+GENDER_MAP = {
+    "לגבר": "men", "לגברים": "men", "גברי": "men", "גברים": "men",
+    "לאישה": "women", "לנשים": "women", "נשי": "women", "נשים": "women",
+    "לילד": "kids boy", "לילדה": "kids girl", "לילדים": "kids",
+    "לתינוק": "baby", "לתינוקת": "baby girl",
+}
+
+COLOR_MAP = {
+    "זהב": "gold", "זהבי": "gold",
+    "כסף": "silver", "כסוף": "silver",
+    "שחור": "black", "שחורה": "black",
+    "לבן": "white", "לבנה": "white",
+    "אדום": "red", "אדומה": "red",
+    "כחול": "blue", "כחולה": "blue",
+    "ירוק": "green", "ירוקה": "green",
+    "ורוד": "pink", "ורודה": "pink",
+    "סגול": "purple", "סגולה": "purple",
+    "חום": "brown", "חומה": "brown",
+    "אפור": "gray", "אפורה": "gray",
+    "צהוב": "yellow", "צהובה": "yellow",
+    "כתום": "orange", "כתומה": "orange",
+    "בז'": "beige", "בז": "beige",
+}
+
+def translate_to_english(text):
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {"client": "gtx", "sl": "he", "tl": "en", "dt": "t", "q": text[:200]}
+        r = requests.get(url, params=params, timeout=10)
+        result = r.json()[0][0][0]
+    except:
+        result = text
+
+    # הוסף מגדר אם חסר
+    for he_word, en_word in GENDER_MAP.items():
+        if he_word in text and en_word not in result.lower():
+            result = en_word + " " + result
+            break
+
+    # הוסף צבע אם חסר
+    for he_color, en_color in COLOR_MAP.items():
+        if he_color in text and en_color not in result.lower():
+            result = result + " " + en_color
+            break
+
+    # הסר מילת חיפוש בעברית אם נשארה
+    result = re.sub(r'[א-ת]+', '', result).strip()
+
+    print(f"Translated: {text} -> {result}")
+    return result
 
 def translate_to_hebrew(text):
     try:
@@ -61,33 +77,6 @@ def translate_to_hebrew(text):
         return r.json()[0][0][0]
     except:
         return text
-
-def translate_to_english(text):
-    result = ""
-    if text in DICTIONARY:
-        result = DICTIONARY[text]
-    else:
-        for key in DICTIONARY:
-            if key in text:
-                result = DICTIONARY[key]
-                break
-    if not result:
-        try:
-            url = "https://translate.googleapis.com/translate_a/single"
-            params = {"client": "gtx", "sl": "he", "tl": "en", "dt": "t", "q": text[:200]}
-            r = requests.get(url, params=params, timeout=10)
-            result = r.json()[0][0][0]
-        except:
-            result = text
-    if "לגבר" in text and "men" not in result:
-        result = "men " + result
-    elif "לאישה" in text and "women" not in result:
-        result = "women " + result
-    for he_color, en_color in COLORS.items():
-        if he_color in text and en_color not in result:
-            result = result + " " + en_color
-            break
-    return result
 
 def parse_price_range(text):
     match = re.search(r'(\d+)\s*-\s*(\d+)\s*שח', text)
@@ -201,7 +190,6 @@ def handle_messages(offset):
                     min_p, max_p = parse_price_range(text)
                     send_telegram(f"🔍 מחפש עבורך את הדיל הכי טוב על <b>{text}</b>...", chat_id=chat_id)
                     keyword_en = translate_to_english(text)
-                    print(f"Translated: {text} -> {keyword_en}")
                     products = get_products(keyword_en, min_p, max_p)
                     if products:
                         send_telegram(f"✅ מצאתי <b>{len(products[:5])}</b> מוצרים מעולים!", chat_id=chat_id)
@@ -217,13 +205,13 @@ def handle_messages(offset):
 print("Starting...")
 send_telegram(
     "🎉 <b>ברוכים הבאים ל-AliDeals Israel!</b>\n\n"
-    "אני מוצא לך את הדילים הכי טובים מאלי אקספרס 🛍️\n\n"
+    "אני מוצא לך את הדילים הכי טובים מאלי אקספרס 🛍\n\n"
     "🔍 <b>איך לחפש?</b>\n"
     "פשוט שלח לי מה אתה מחפש:\n"
     "• שרשרת זהב\n"
-    "• נעלי בית לגבר\n"
+    "• נעלי בית לגברים\n"
     "• תיק עור 50-200 שח\n"
-    "• כובע צמר שחור\n\n"
+    "• כובע צמר שחור לגבר\n\n"
     "⚡ אני אמצא לך את המחיר הכי זול!"
 )
 time.sleep(2)
