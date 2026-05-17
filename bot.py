@@ -42,6 +42,35 @@ COLOR_MAP = {
     "בז": "beige",
 }
 
+# מילות מפתח חייבות להופיע בכותרת
+REQUIRED_WORDS = {
+    "necklace": ["necklace", "chain", "pendant", "choker"],
+    "bracelet": ["bracelet", "bangle", "cuff"],
+    "earring": ["earring", "ear", "stud", "hoop"],
+    "ring": ["ring"],
+    "bag": ["bag", "handbag", "purse", "tote", "backpack"],
+    "wallet": ["wallet", "purse", "card holder"],
+    "shoes": ["shoes", "sneaker", "boot", "heel", "slipper", "sandal"],
+    "slipper": ["slipper", "mule", "slide"],
+    "hat": ["hat", "cap", "beanie", "beret"],
+    "watch": ["watch", "timepiece"],
+    "shirt": ["shirt", "blouse", "top", "tee"],
+    "dress": ["dress", "skirt", "gown"],
+    "coat": ["coat", "jacket", "hoodie", "sweater"],
+}
+
+def get_required_words(keyword):
+    keyword_lower = keyword.lower()
+    for key, words in REQUIRED_WORDS.items():
+        if key in keyword_lower:
+            return words
+    return keyword_lower.split()[:2]
+
+def is_relevant(title, keyword):
+    title_lower = title.lower()
+    required = get_required_words(keyword)
+    return any(word in title_lower for word in required)
+
 def translate_to_english(text):
     try:
         url = "https://translate.googleapis.com/translate_a/single"
@@ -90,12 +119,6 @@ def safe_int(val):
     except:
         return 0
 
-def is_relevant(title, keyword):
-    keywords = keyword.lower().split()
-    title_lower = title.lower()
-    matches = sum(1 for kw in keywords if kw in title_lower)
-    return matches >= max(1, len(keywords) // 2)
-
 def get_products(keyword, min_price=None, max_price=None):
     ts = str(int(time.time() * 1000))
     params = {
@@ -121,17 +144,19 @@ def get_products(keyword, min_price=None, max_price=None):
         items = data["aliexpress_affiliate_product_query_response"]["resp_result"]["result"]["products"]["product"]
         for item in items:
             try:
+                title = item.get("product_title", "")
+
+                # בדיקת רלוונטיות חזקה
+                if not is_relevant(title, keyword):
+                    print(f"Skipped (not relevant): {title[:50]}")
+                    continue
+
                 price_usd = float(item["target_sale_price"])
                 price_ils = round(price_usd * USD_TO_ILS, 2)
 
                 if min_price and price_ils < min_price:
                     continue
                 if max_price and price_ils > max_price:
-                    continue
-
-                # בדיקת רלוונטיות
-                title = item.get("product_title", "")
-                if not is_relevant(title, keyword):
                     continue
 
                 name_he = translate_to_hebrew(title)
@@ -202,12 +227,12 @@ def handle_messages(offset):
                     keyword_en = translate_to_english(text)
                     products = get_products(keyword_en, min_p, max_p)
                     if products:
-                        send_telegram(f"✅ מצאתי <b>{len(products[:5])}</b> מוצרים עם משלוח חינם!", chat_id=chat_id)
+                        send_telegram(f"✅ מצאתי <b>{len(products[:5])}</b> מוצרים!", chat_id=chat_id)
                         for p in products[:5]:
                             send_telegram(format_message(p), p["img"], chat_id=chat_id)
                             time.sleep(2)
                     else:
-                        send_telegram("😔 לא נמצאו מוצרים מתאימים עם משלוח חינם.\nנסה מילת חיפוש אחרת.", chat_id=chat_id)
+                        send_telegram("😔 לא נמצאו מוצרים מתאימים.\nנסה מילת חיפוש אחרת.", chat_id=chat_id)
         except Exception as e:
             print(f"Handle error: {e}")
     return offset
@@ -221,18 +246,18 @@ send_telegram(
     "• נעלי בית לגברים\n"
     "• תיק עור 50-200 שח\n"
     "• כובע צמר שחור לגבר\n\n"
-    "⚡ אני אמצא לך את המחיר הכי זול עם משלוח חינם!"
+    "⚡ אני אמצא לך את המחיר הכי זול!"
 )
 time.sleep(2)
 
 keywords = [
-    "gold necklace free shipping", "silver bracelet free shipping",
-    "pearl earrings free shipping", "ring women jewelry free shipping",
-    "hair accessories women free shipping", "crystal necklace free shipping",
-    "charm bracelet free shipping", "vintage earrings free shipping",
-    "women handbag free shipping", "crossbody bag free shipping",
-    "tote bag women free shipping", "backpack women fashion free shipping",
-    "wallet women leather free shipping",
+    "gold necklace women", "silver bracelet women",
+    "pearl earrings women", "ring women jewelry",
+    "hair accessories women", "crystal necklace",
+    "charm bracelet", "vintage earrings",
+    "women handbag", "crossbody bag women",
+    "tote bag women", "backpack women",
+    "wallet women leather",
 ]
 ki = 0
 sent = set()
