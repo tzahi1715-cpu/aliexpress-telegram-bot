@@ -9,6 +9,7 @@ CHAT_ID = "-5136013039"
 APP_KEY = "534108"
 APP_SECRET = "2nSUuI2T0IfFwvNb1TpAmpeILtsjCszH"
 USD_TO_ILS = 3.7
+MAX_SHIPPING_ILS = 10
 
 URGENCY_PHRASES = [
     "⏰ מלאי מוגבל - הזדרז!",
@@ -39,7 +40,7 @@ COLOR_MAP = {
     "אפור": "gray", "אפורה": "gray",
     "צהוב": "yellow", "צהובה": "yellow",
     "כתום": "orange", "כתומה": "orange",
-    "בז'": "beige", "בז": "beige",
+    "בז": "beige",
 }
 
 def translate_to_english(text):
@@ -50,22 +51,15 @@ def translate_to_english(text):
         result = r.json()[0][0][0]
     except:
         result = text
-
-    # הוסף מגדר אם חסר
     for he_word, en_word in GENDER_MAP.items():
         if he_word in text and en_word not in result.lower():
             result = en_word + " " + result
             break
-
-    # הוסף צבע אם חסר
     for he_color, en_color in COLOR_MAP.items():
         if he_color in text and en_color not in result.lower():
             result = result + " " + en_color
             break
-
-    # הסר מילת חיפוש בעברית אם נשארה
     result = re.sub(r'[א-ת]+', '', result).strip()
-
     print(f"Translated: {text} -> {result}")
     return result
 
@@ -105,12 +99,13 @@ def get_products(keyword, min_price=None, max_price=None):
         "sign_method": "md5",
         "method": "aliexpress.affiliate.product.query",
         "keywords": keyword,
-        "page_size": "10",
+        "page_size": "20",
         "page_no": "1",
         "target_currency": "USD",
         "target_language": "EN",
         "tracking_id": "default",
         "sort": "SALE_PRICE_ASC",
+        "ship_to_country": "IL",
     }
     params["sign"] = sign(params)
     r = requests.post("https://api-sg.aliexpress.com/sync", data=params, timeout=20)
@@ -122,18 +117,43 @@ def get_products(keyword, min_price=None, max_price=None):
             try:
                 price_usd = float(item["target_sale_price"])
                 price_ils = round(price_usd * USD_TO_ILS, 2)
+
                 if min_price and price_ils < min_price:
                     continue
                 if max_price and price_ils > max_price:
                     continue
+
+                # בדיקת משלוח
+                shipping_usd = float(item.get("target_app_sale_price", item.get("lastest_volume", 0)) or 0)
+                try:
+                    shipping_usd = float(item.get("ship_to_days", 0) or 0)
+                except:
+                    shipping_usd = 0
+
+                # נסה לקבל מחיר משלוח
+                freight = item.get("freightAmount", {})
+                if isinstance(freight, dict):
+                    shipping_usd = float(freight.get("amount", 0) or 0)
+                else:
+                    shipping_usd = 0
+
+                shipping_ils = round(shipping_usd * USD_TO_ILS, 2)
+
+                if shipping_ils > MAX_SHIPPING_ILS:
+                    continue
+
                 name_he = translate_to_hebrew(item["product_title"])
                 discount = safe_int(item.get("discount", 0))
+
+                shipping_text = "משלוח חינם! 🎁" if shipping_ils == 0 else f"משלוח ₪{shipping_ils}"
+
                 products.append({
                     "name": name_he,
                     "price": f"₪{price_ils}",
                     "img": item["product_main_image_url"],
                     "link": item["promotion_link"],
                     "discount": discount,
+                    "shipping": shipping_text,
                 })
             except Exception as e:
                 print(f"Item error: {e}")
@@ -148,9 +168,10 @@ def format_message(product):
     msg = (
         f"🛍️ <b>{product['name']}</b>\n\n"
         f"💰 מחיר: <b>{product['price']}</b>\n"
+        f"🚚 {product['shipping']}\n"
         f"{discount_text}"
         f"{urgency}\n\n"
-        f"👉 <a href='{product['link']}'>לחץ כאן לקנייה עם משלוח חינם!</a>"
+        f"👉 <a href='{product['link']}'>לחץ כאן לקנייה!</a>"
     )
     return msg
 
@@ -192,12 +213,12 @@ def handle_messages(offset):
                     keyword_en = translate_to_english(text)
                     products = get_products(keyword_en, min_p, max_p)
                     if products:
-                        send_telegram(f"✅ מצאתי <b>{len(products[:5])}</b> מוצרים מעולים!", chat_id=chat_id)
+                        send_telegram(f"✅ מצאתי <b>{len(products[:5])}</b> מוצרים עם משלוח זול!", chat_id=chat_id)
                         for p in products[:5]:
                             send_telegram(format_message(p), p["img"], chat_id=chat_id)
                             time.sleep(2)
                     else:
-                        send_telegram("😔 לא נמצאו מוצרים כרגע.\nנסה מילת חיפוש אחרת.", chat_id=chat_id)
+                        send_telegram("😔 לא נמצאו מוצרים עם משלוח זול כרגע.\nנסה מילת חיפוש אחרת.", chat_id=chat_id)
         except Exception as e:
             print(f"Handle error: {e}")
     return offset
@@ -205,9 +226,9 @@ def handle_messages(offset):
 print("Starting...")
 send_telegram(
     "🎉 <b>ברוכים הבאים ל-AliDeals Israel!</b>\n\n"
-    "אני מוצא לך את הדילים הכי טובים מאלי אקספרס 🛍\n\n"
+    "אני מוצא לך את הדילים הכי טובים מאלי אקספרס 🛍️\n"
+    "רק מוצרים עם <b>משלוח חינם או עד ₪10!</b>\n\n"
     "🔍 <b>איך לחפש?</b>\n"
-    "פשוט שלח לי מה אתה מחפש:\n"
     "• שרשרת זהב\n"
     "• נעלי בית לגברים\n"
     "• תיק עור 50-200 שח\n"
