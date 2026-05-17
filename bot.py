@@ -12,10 +12,10 @@ USD_TO_ILS = 3.7
 MIN_PRICE_ILS = 10
 
 URGENCY_PHRASES = [
-    "⏰ מלאי מוגבל - הזדרז!",
+    "⏰ מלאי מוגבל - הזדרזי!",
     "🔥 נמכר בקצב מטורף!",
     "⚡ הצעה לזמן מוגבל!",
-    "🏃 אל תפספס את המחיר הזה!",
+    "🏃 אל תפספסי את המחיר הזה!",
     "💎 עסקה שאי אפשר לסרב לה!",
 ]
 
@@ -190,7 +190,7 @@ def format_message(product):
         f"🚚 משלוח חינם! 🎁\n"
         f"{discount_text}"
         f"{urgency}\n\n"
-        f"👉 <a href='{product['link']}'>לחץ כאן לקנייה!</a>"
+        f"👉 <a href='{product['link']}'>לחצי כאן לקנייה!</a>"
     )
     return msg
 
@@ -228,7 +228,7 @@ def handle_messages(offset):
                 text = text.replace("@Isradeals_il_bot", "").strip()
                 if text:
                     min_p, max_p = parse_price_range(text)
-                    send_telegram(f"🔍 מחפש עבורך <b>{text}</b> עם משלוח חינם...", chat_id=chat_id)
+                    send_telegram(f"🔍 מחפשת עבורך <b>{text}</b> עם משלוח חינם...", chat_id=chat_id)
                     keyword_en = translate_to_english(text)
                     products = get_products(keyword_en, min_p, max_p)
                     if products:
@@ -237,21 +237,21 @@ def handle_messages(offset):
                             send_telegram(format_message(p), p["img"], chat_id=chat_id)
                             time.sleep(2)
                     else:
-                        send_telegram("😔 לא נמצאו מוצרים מתאימים.\nנסה מילת חיפוש אחרת.", chat_id=chat_id)
+                        send_telegram("😔 לא נמצאו מוצרים מתאימים.\nנסי מילת חיפוש אחרת.", chat_id=chat_id)
         except Exception as e:
             print(f"Handle error: {e}")
     return offset
 
 print("Starting...")
 send_telegram(
-    "🎉 <b>ברוכים הבאים ל-AliDeals Israel!</b>\n\n"
-    "אני מוצא לך דילים מאלי אקספרס עם <b>משלוח חינם בלבד!</b> 🚚🎁\n\n"
+    "🎉 <b>ברוכות הבאות ל-AliDeals Israel!</b>\n\n"
+    "אני מוצאת לך דילים מאלי אקספרס עם <b>משלוח חינם בלבד!</b> 🚚🎁\n\n"
     "🔍 <b>איך לחפש?</b>\n"
     "• שרשרת זהב\n"
     "• נעלי בית לגברים\n"
     "• תיק עור 50-200 שח\n"
     "• כובע צמר שחור לגבר\n\n"
-    "⚡ אני אמצא לך את המחיר הכי זול!"
+    "⚡ אמצא לך את המחיר הכי זול!"
 )
 time.sleep(2)
 
