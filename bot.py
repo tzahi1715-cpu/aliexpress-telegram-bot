@@ -267,7 +267,7 @@ keywords = [
 ki = 0
 sent = set()
 offset = None
-last_auto = time.time()
+last_auto = time.time() - 3600
 
 while True:
     try:
@@ -276,6 +276,7 @@ while True:
             kw = keywords[ki % len(keywords)]
             print(f"Auto: {kw}")
             products = get_products(kw)
+            print(f"Found: {len(products)}")
             for p in products:
                 if p["link"] not in sent:
                     send_telegram(format_message(p), p["img"])
