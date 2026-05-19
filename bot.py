@@ -3,6 +3,8 @@ import time
 import hashlib
 import re
 import random
+import json
+import os
 
 TELEGRAM_TOKEN = "7419793459:AAE0mSRGuNituAJDZ5wdmplG5F8VsLpZGHQ"
 CHAT_ID = "-5136013039"
@@ -10,6 +12,8 @@ APP_KEY = "534108"
 APP_SECRET = "2nSUuI2T0IfFwvNb1TpAmpeILtsjCszH"
 USD_TO_ILS = 3.7
 MIN_PRICE_ILS = 10
+SENT_FILE = "sent_products.json"
+MAX_SENT = 500
 
 URGENCY_PHRASES = [
     "⏰ מלאי מוגבל - הזדרזי!",
@@ -58,6 +62,25 @@ REQUIRED_WORDS = {
     "dress": ["dress", "skirt", "gown"],
     "coat": ["coat", "jacket", "hoodie", "sweater"],
 }
+
+def load_sent():
+    try:
+        if os.path.exists(SENT_FILE):
+            with open(SENT_FILE, "r") as f:
+                return set(json.load(f))
+    except:
+        pass
+    return set()
+
+def save_sent(sent):
+    try:
+        sent_list = list(sent)
+        if len(sent_list) > MAX_SENT:
+            sent_list = sent_list[-MAX_SENT:]
+        with open(SENT_FILE, "w") as f:
+            json.dump(sent_list, f)
+    except:
+        pass
 
 def get_required_words(keyword):
     keyword_lower = keyword.lower()
@@ -128,7 +151,7 @@ def safe_int(val):
     except:
         return 0
 
-def get_products(keyword, min_price=None, max_price=None):
+def get_products(keyword, min_price=None, max_price=None, page=1):
     ts = str(int(time.time() * 1000))
     params = {
         "app_key": APP_KEY,
@@ -137,7 +160,7 @@ def get_products(keyword, min_price=None, max_price=None):
         "method": "aliexpress.affiliate.product.query",
         "keywords": keyword,
         "page_size": "20",
-        "page_no": "1",
+        "page_no": str(page),
         "target_currency": "USD",
         "target_language": "EN",
         "tracking_id": "default",
@@ -264,8 +287,10 @@ keywords = [
     "tote bag women", "backpack women",
     "wallet women leather",
 ]
+
+sent = load_sent()
 ki = 0
-sent = set()
+page = 1
 offset = None
 last_auto = time.time() - 3600
 
@@ -274,15 +299,26 @@ while True:
         offset = handle_messages(offset)
         if time.time() - last_auto >= 3600:
             kw = keywords[ki % len(keywords)]
-            print(f"Auto: {kw}")
-            products = get_products(kw)
-            print(f"Found: {len(products)}")
-            for p in products:
-                if p["link"] not in sent:
+            print(f"Auto: {kw} page {page}")
+            products = get_products(kw, page=page)
+            new_products = [p for p in products if p["link"] not in sent]
+            print(f"Found: {len(products)} total, {len(new_products)} new")
+
+            if not new_products:
+                page += 1
+                if page > 5:
+                    page = 1
+                    ki += 1
+                    print("Moving to next keyword")
+            else:
+                for p in new_products[:3]:
                     send_telegram(format_message(p), p["img"])
                     sent.add(p["link"])
+                    save_sent(sent)
                     time.sleep(5)
-            ki += 1
+                page += 1
+                ki += 1
+
             last_auto = time.time()
     except Exception as e:
         print(f"Error: {e}")
